@@ -348,11 +348,17 @@ function copyOwnProps(
   return target;
 }
 
-// takes either an object or a (possibly nested) array
+// takes either an object, a promise, or a (possibly nested) array
 // and completes the customMock object with any fields
 // defined on genericMock
 // only merges objects or arrays. Scalars are returned as is
 function mergeMocks(genericMockFunction: () => any, customMock: any): any {
+  console.log('MERGING', genericMockFunction, customMock)
+  if (typeof customMock.then === 'function') {
+    return customMock.then((customMockResult: any) => {
+      return mergeObjects(genericMockFunction(), customMockResult);
+    })
+  }
   if (Array.isArray(customMock)) {
     return customMock.map((el: any) => mergeMocks(genericMockFunction, el));
   }

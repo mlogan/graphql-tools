@@ -1267,13 +1267,15 @@ describe('Mock', () => {
       }),
       Thread: () => ({
         name: 'Lorem Ipsum',
-        posts: (_o: any, a: Record<string, any>) =>
-          new MockList(
+        posts: async (_o: any, a: Record<string, any>) => {
+          throw new Error("post error")
+          return new MockList(
             ITEMS_PER_PAGE * a['num'],
             (_oi: any, ai: Record<string, any>) => ({
               id: ai['num'],
             }),
-          ),
+          )
+        }
       }),
       Post: () => ({
         id: '41ae7bd',
@@ -1305,6 +1307,7 @@ describe('Mock', () => {
       },
     };
     return graphql(jsSchema, testQuery).then((res) => {
+      console.log('res', JSON.stringify(res, null, '  '))
       expect(res.data).toEqual(expected);
     });
   });
@@ -1452,6 +1455,88 @@ describe('Mock', () => {
     };
     return graphql(schema, query).then((res) => {
       expect(res).toEqual(expected);
+    });
+  });
+
+  it('should handle asynchronous resolvers', async () => {
+    // Construct a schema, using GraphQL schema language
+    const typeDefs = /* GraphQL */ `
+      scalar DateTime
+
+      type SomeObject {
+        floatResolved: Float
+        floatMocked: Float
+        dateResolved: DateTime
+        dateMocked: DateTime
+      }
+
+      type MutRet {
+        obj: SomeObject
+      }
+
+      type Query {
+        someObject: SomeObject
+      }
+
+      type Mutation {
+        mutateSomeObject: MutRet
+      }
+    `;
+
+    // Provide resolver functions for your schema fields
+    const resolvers = {
+      Query: {
+        async someObject() {
+          throw new Error("someObject error")
+        },
+      },
+      Mutation: {
+        async mutateSomeObject() {
+          throw new Error("someObject error")
+        },
+      },
+    };
+
+    const schema = makeExecutableSchema({
+      typeDefs,
+      resolvers,
+    });
+
+    const mocks = {
+      Float: () => 777,
+      DateTime: () => '2000-01-01T00:00:00.270Z',
+    };
+
+    addMocksToSchema({
+      schema,
+      mocks,
+      preserveResolvers: true,
+    });
+    const result = await graphql({
+      schema,
+      source: /* GraphQL */ `
+        mutation {
+          mutateSomeObject {
+            obj {
+              floatResolved
+              floatMocked
+              dateResolved
+              dateMocked
+            }
+          }
+        }
+      `,
+    });
+
+    expect(result).toEqual({
+      data: {
+        someObject: {
+          floatResolved: 42.2,
+          floatMocked: 777,
+          dateResolved: '2018-11-11T11:11:11.270Z',
+          dateMocked: '2000-01-01T00:00:00.270Z',
+        },
+      },
     });
   });
 
